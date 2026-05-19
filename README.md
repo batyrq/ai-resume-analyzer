@@ -4,14 +4,6 @@ Upload your resume and get instant AI-powered feedback, score, and improvement t
 
 ---
 
-## Screenshot
-
-> _Add a screenshot of the app here_
-
-![App Screenshot](screenshot.png)
-
----
-
 ## Features
 
 - **PDF Upload** — drag-and-drop or browse to upload your resume as a PDF; text is extracted automatically via pdf.js
