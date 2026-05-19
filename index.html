@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Resume Analyzer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0f0f0f;--card:#1a1a1a;--border:#2a2a2a;
+  --accent:#6366f1;--accent-dim:rgba(99,102,241,.12);
+  --text:#e5e5e5;--muted:#777;
+  --green:#22c55e;--red:#ef4444;--blue:#3b82f6;--yellow:#eab308;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:36px 16px 72px;line-height:1.5}
+.wrap{max-width:860px;margin:0 auto}
+
+/* ── Header ── */
+.hdr{text-align:center;margin-bottom:44px}
+.hdr-logo{display:inline-flex;align-items:center;gap:12px;margin-bottom:10px}
+.hdr-icon{width:46px;height:46px;background:var(--accent);border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:1.5rem}
+.hdr h1{font-size:2.4rem;font-weight:800;background:linear-gradient(135deg,#fff 0%,#818cf8 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hdr p{color:var(--muted);font-size:.95rem;margin-top:6px}
+
+/* ── Card ── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:28px;margin-bottom:16px}
+
+/* ── Form elements ── */
+.field-label{display:block;font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px}
+input[type=password],textarea{width:100%;background:rgba(0,0,0,.45);border:1px solid var(--border);border-radius:12px;padding:13px 16px;color:var(--text);font-size:.95rem;font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
+input[type=password]:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+textarea{resize:vertical;min-height:220px;line-height:1.7}
+.api-hint{font-size:.76rem;color:var(--muted);margin-top:6px}
+.api-row{margin-bottom:24px}
+
+/* ── Tabs ── */
+.tabs{display:flex;background:rgba(0,0,0,.4);border-radius:14px;padding:5px;gap:5px;margin-bottom:20px}
+.tab{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;background:none;border:none;color:var(--muted);padding:11px;border-radius:10px;font-size:.9rem;font-weight:600;cursor:pointer;transition:all .2s}
+.tab.active{background:var(--accent);color:#fff;box-shadow:0 2px 14px rgba(99,102,241,.4)}
+.tab:not(.active):hover{color:var(--text);background:rgba(255,255,255,.05)}
+.pane{display:none}.pane.active{display:block}
+
+/* ── Drop zone ── */
+.dz{border:2px dashed var(--border);border-radius:16px;padding:52px 24px;text-align:center;position:relative;cursor:pointer;transition:all .2s;background:rgba(0,0,0,.2)}
+.dz:hover,.dz.over{border-color:var(--accent);background:var(--accent-dim)}
+.dz input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.dz-ico{font-size:2.8rem;margin-bottom:12px}
+.dz-t{font-size:1rem;font-weight:600;margin-bottom:5px}
+.dz-s{font-size:.82rem;color:var(--muted)}
+.file-pill{display:none;align-items:center;gap:10px;margin-top:14px;padding:10px 16px;background:var(--accent-dim);border:1px solid rgba(99,102,241,.3);border-radius:10px;font-size:.88rem}
+.file-pill.on{display:flex}
+
+/* ── Button ── */
+.btn{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;margin-top:22px;padding:15px 32px;background:var(--accent);color:#fff;border:none;border-radius:14px;font-size:1rem;font-weight:700;cursor:pointer;transition:all .2s;letter-spacing:.01em}
+.btn:hover:not(:disabled){background:#4f52d3;box-shadow:0 4px 24px rgba(99,102,241,.45);transform:translateY(-1px)}
+.btn:active:not(:disabled){transform:translateY(0)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* ── Error ── */
+.err{display:none;margin-top:16px;padding:14px 18px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:12px;color:#fca5a5;font-size:.88rem;line-height:1.55}
+.err.on{display:block}
+
+/* ── Loading ── */
+.loading{display:none;padding:52px 24px;text-align:center}
+.loading.on{display:block}
+.spinner{width:52px;height:52px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .75s linear infinite;margin:0 auto 18px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading p{color:var(--muted);font-size:.95rem}
+
+/* ── Results ── */
+.results{display:none}
+.results.on{display:block;animation:up .45s ease}
+@keyframes up{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── Overview ── */
+.overview{display:flex;gap:32px;align-items:center;flex-wrap:wrap}
+
+/* ── Gauge ── */
+.gauge{position:relative;width:168px;height:168px;flex-shrink:0}
+.gauge svg{width:168px;height:168px;transform:rotate(-90deg)}
+.g-track{fill:none;stroke:#252525;stroke-width:13}
+.g-arc{fill:none;stroke-width:13;stroke-linecap:round;transition:stroke-dasharray 1.6s cubic-bezier(.25,1,.5,1),stroke .4s}
+.g-inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.g-num{font-size:2.6rem;font-weight:800;line-height:1;transition:color .4s}
+.g-sub{font-size:.72rem;color:var(--muted);margin-top:3px;font-weight:500}
+
+/* ── Overview right ── */
+.ov-right{flex:1;min-width:200px}
+.grade-row{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+.grade-badge{font-size:2rem;font-weight:900;padding:4px 22px;border-radius:100px;border:2px solid;line-height:1.6}
+.grade-lbl{font-size:.85rem;color:var(--muted)}
+.ats-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px}
+.ats-t{font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.ats-pct{font-size:.92rem;font-weight:700}
+.bar-track{height:9px;background:#252525;border-radius:100px;overflow:hidden}
+.bar-fill{height:100%;border-radius:100px;width:0;background:linear-gradient(90deg,var(--accent),#818cf8);transition:width 1.6s cubic-bezier(.25,1,.5,1)}
+
+/* ── Summary ── */
+.summary-body{color:var(--text);font-size:.96rem;line-height:1.75;opacity:.9}
+
+/* ── Section heading ── */
+.sec-h{font-size:.76rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px}
+
+/* ── Three columns ── */
+.cols{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px}
+.col{border-radius:18px;padding:20px;border:1px solid}
+.col-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.col-ico{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0}
+.col-name{font-weight:700;font-size:.95rem}
+.col-item{font-size:.84rem;line-height:1.55;padding:9px 12px;border-radius:9px;margin-bottom:7px;border-left:3px solid}
+.col-item:last-child{margin-bottom:0}
+
+/* Strengths */
+.str{background:rgba(34,197,94,.06);border-color:rgba(34,197,94,.2)}
+.str .col-ico{background:rgba(34,197,94,.12);color:var(--green)}
+.str .col-name{color:var(--green)}
+.str .col-item{background:rgba(34,197,94,.07);border-color:var(--green);color:#bbf7d0}
+/* Weaknesses */
+.wk{background:rgba(239,68,68,.06);border-color:rgba(239,68,68,.2)}
+.wk .col-ico{background:rgba(239,68,68,.12);color:var(--red)}
+.wk .col-name{color:var(--red)}
+.wk .col-item{background:rgba(239,68,68,.07);border-color:var(--red);color:#fecaca}
+/* Improvements */
+.imp{background:rgba(59,130,246,.06);border-color:rgba(59,130,246,.2)}
+.imp .col-ico{background:rgba(59,130,246,.12);color:var(--blue)}
+.imp .col-name{color:var(--blue)}
+.imp .col-item{background:rgba(59,130,246,.07);border-color:var(--blue);color:#bfdbfe}
+
+/* ── Keywords ── */
+.kw-grid{display:flex;flex-wrap:wrap;gap:8px}
+.chip{padding:6px 14px;border-radius:100px;font-size:.81rem;font-weight:600;background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.25);color:#a5b4fc}
+
+/* ── Responsive ── */
+@media(max-width:640px){
+  .hdr h1{font-size:1.85rem}
+  .card{padding:20px}
+  .overview{flex-direction:column;align-items:center}
+  .ov-right{width:100%}
+  .grade-row{justify-content:center}
+  .cols{grid-template-columns:1fr}
+}
+@media(max-width:400px){
+  .card{padding:16px}
+  .gauge{width:148px;height:148px}
+  .gauge svg{width:148px;height:148px}
+  .g-num{font-size:2.1rem}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Header -->
+  <div class="hdr">
+    <div class="hdr-logo">
+      <div class="hdr-icon">📋</div>
+      <h1>AI Resume Analyzer</h1>
+    </div>
+    <p>Powered by Groq · LLaMA 3.3 70B · Instant AI-powered resume feedback</p>
+  </div>
+
+  <!-- Input card -->
+  <div class="card">
+
+    <!-- API key -->
+    <div class="api-row">
+      <label class="field-label">Groq API Key</label>
+      <input type="password" id="apiKey" placeholder="gsk_…" autocomplete="new-password" spellcheck="false" />
+      <p class="api-hint">Saved in your browser · only sent to Groq's API · never stored elsewhere.</p>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('pdf',this)">📄 Upload PDF</button>
+      <button class="tab" onclick="switchTab('text',this)">✏️ Paste Text</button>
+    </div>
+
+    <!-- PDF pane -->
+    <div class="pane active" id="pane-pdf">
+      <div class="dz" id="dz">
+        <input type="file" id="fileIn" accept=".pdf" />
+        <div class="dz-ico">📁</div>
+        <div class="dz-t">Drop your PDF resume here</div>
+        <div class="dz-s">or click to browse · PDF files only</div>
+      </div>
+      <div class="file-pill" id="pill">📄 <span id="fname"></span></div>
+    </div>
+
+    <!-- Text pane -->
+    <div class="pane" id="pane-text">
+      <label class="field-label">Resume content</label>
+      <textarea id="rtxt" placeholder="Paste your full resume here…&#10;&#10;Include work experience, education, skills, and other relevant sections."></textarea>
+    </div>
+
+    <!-- Error -->
+    <div class="err" id="errBox"></div>
+
+    <!-- Analyze -->
+    <button class="btn" id="analyzeBtn" onclick="analyze()">✨ Analyze Resume</button>
+
+  </div><!-- /card -->
+
+  <!-- Loading -->
+  <div class="loading" id="loadBox">
+    <div class="spinner"></div>
+    <p>Analyzing your resume with AI… this takes a few seconds.</p>
+  </div>
+
+  <!-- Results -->
+  <div class="results" id="resBox">
+
+    <!-- Overview -->
+    <div class="card">
+      <div class="overview">
+        <div class="gauge">
+          <svg viewBox="0 0 168 168">
+            <circle class="g-track" cx="84" cy="84" r="70"/>
+            <circle class="g-arc" id="garc" cx="84" cy="84" r="70" stroke="#6366f1" stroke-dasharray="0 439.82"/>
+          </svg>
+          <div class="g-inner">
+            <div class="g-num" id="scoreNum">0</div>
+            <div class="g-sub">out of 100</div>
+          </div>
+        </div>
+        <div class="ov-right">
+          <div class="grade-row">
+            <div class="grade-badge" id="gradeBadge">—</div>
+            <div class="grade-lbl">Overall Grade</div>
+          </div>
+          <div class="ats-row">
+            <div class="ats-t">ATS Compatibility</div>
+            <div class="ats-pct" id="atsPct">0%</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" id="atsBar"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="card">
+      <div class="sec-h">Overall Summary</div>
+      <p class="summary-body" id="summaryEl"></p>
+    </div>
+
+    <!-- Three columns -->
+    <div class="cols">
+      <div class="col str">
+        <div class="col-head"><div class="col-ico">✓</div><div class="col-name">Strengths</div></div>
+        <div id="strList"></div>
+      </div>
+      <div class="col wk">
+        <div class="col-head"><div class="col-ico">✗</div><div class="col-name">Weaknesses</div></div>
+        <div id="wkList"></div>
+      </div>
+      <div class="col imp">
+        <div class="col-head"><div class="col-ico">→</div><div class="col-name">Improvements</div></div>
+        <div id="impList"></div>
+      </div>
+    </div>
+
+    <!-- Missing keywords -->
+    <div class="card">
+      <div class="sec-h">Missing Keywords</div>
+      <div class="kw-grid" id="kwGrid"></div>
+    </div>
+
+  </div><!-- /results -->
+
+</div><!-- /wrap -->
+<script>
+// ── PDF.js worker ─────────────────────────────────────────────────────────────
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let activeTab = 'pdf';
+let selFile   = null;
+
+// ── Persist API key ───────────────────────────────────────────────────────────
+const apiKeyEl = document.getElementById('apiKey');
+apiKeyEl.value = localStorage.getItem('groq_api_key') || '';
+apiKeyEl.addEventListener('input', () =>
+  localStorage.setItem('groq_api_key', apiKeyEl.value.trim())
+);
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(tab, btn) {
+  activeTab = tab;
+  document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+  document.getElementById('pane-' + tab).classList.add('active');
+  clearErr();
+}
+
+// ── Drag-and-drop / file input ────────────────────────────────────────────────
+const dz      = document.getElementById('dz');
+const fileIn  = document.getElementById('fileIn');
+
+dz.addEventListener('dragover',  e => { e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('over');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type === 'application/pdf') pickFile(f);
+  else showErr('Please drop a valid PDF file.');
+});
+fileIn.addEventListener('change', e => { if (e.target.files[0]) pickFile(e.target.files[0]); });
+
+function pickFile(f) {
+  selFile = f;
+  document.getElementById('fname').textContent = f.name + '  ·  ' + (f.size/1024).toFixed(0) + ' KB';
+  document.getElementById('pill').classList.add('on');
+  clearErr();
+}
+
+// ── PDF text extraction ───────────────────────────────────────────────────────
+async function extractPdf(file) {
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  let out = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const tc   = await page.getTextContent();
+    out += tc.items.map(it => it.str).join(' ') + '\n';
+  }
+  return out.trim();
+}
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function showErr(msg) {
+  const el = document.getElementById('errBox');
+  el.textContent = msg; el.classList.add('on');
+}
+function clearErr() { document.getElementById('errBox').classList.remove('on'); }
+
+function setLoading(on) {
+  document.getElementById('loadBox').classList.toggle('on', on);
+  document.getElementById('analyzeBtn').disabled = on;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function scoreColor(n) {
+  return n >= 75 ? '#22c55e' : n >= 50 ? '#eab308' : '#ef4444';
+}
+
+const gradeMap = {
+  A: { c:'#22c55e', bg:'rgba(34,197,94,.1)' },
+  B: { c:'#3b82f6', bg:'rgba(59,130,246,.1)' },
+  C: { c:'#eab308', bg:'rgba(234,179,8,.1)' },
+  D: { c:'#f97316', bg:'rgba(249,115,22,.1)' },
+  F: { c:'#ef4444', bg:'rgba(239,68,68,.1)' },
+};
+
+function countUp(el, target, ms) {
+  ms = ms || 1500;
+  let start = null;
+  const step = ts => {
+    if (!start) start = ts;
+    const p = Math.min((ts - start) / ms, 1);
+    el.textContent = Math.round((1 - Math.pow(1 - p, 3)) * target);
+    if (p < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+// ── Render results ────────────────────────────────────────────────────────────
+function render(d) {
+  // Gauge  (r=70, circ≈439.82)
+  const circ  = 2 * Math.PI * 70;
+  const arc   = document.getElementById('garc');
+  const color = scoreColor(d.score);
+  arc.setAttribute('stroke', color);
+  setTimeout(() => arc.setAttribute('stroke-dasharray', (d.score/100*circ) + ' ' + circ), 80);
+
+  const sn = document.getElementById('scoreNum');
+  sn.style.color = color;
+  countUp(sn, d.score);
+
+  // Grade badge
+  const gb = document.getElementById('gradeBadge');
+  gb.textContent = d.grade;
+  const gs = gradeMap[d.grade] || { c:'#888', bg:'rgba(136,136,136,.1)' };
+  gb.style.color = gs.c; gb.style.borderColor = gs.c; gb.style.background = gs.bg;
+
+  // ATS bar
+  const ap = document.getElementById('atsPct');
+  ap.textContent = d.ats_score + '%';
+  ap.style.color = scoreColor(d.ats_score);
+  setTimeout(() => { document.getElementById('atsBar').style.width = d.ats_score + '%'; }, 100);
+
+  // Summary
+  document.getElementById('summaryEl').textContent = d.summary;
+
+  // Lists
+  function mkList(id, items) {
+    document.getElementById(id).innerHTML = (items||[]).map(t =>
+      '<div class="col-item">' + esc(t) + '</div>'
+    ).join('');
+  }
+  mkList('strList', d.strengths);
+  mkList('wkList',  d.weaknesses);
+  mkList('impList', d.improvements);
+
+  // Keywords
+  document.getElementById('kwGrid').innerHTML =
+    (d.keywords_missing||[]).map(k => '<span class="chip">#' + esc(k) + '</span>').join('');
+
+  // Show
+  const rb = document.getElementById('resBox');
+  rb.classList.add('on');
+  setTimeout(() => rb.scrollIntoView({ behavior:'smooth', block:'start' }), 60);
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+async function analyze() {
+  clearErr();
+
+  const apiKey = apiKeyEl.value.trim();
+  if (!apiKey) { showErr('Please enter your Groq API key.'); return; }
+
+  let text = '';
+
+  if (activeTab === 'pdf') {
+    if (!selFile) { showErr('Please upload a PDF resume.'); return; }
+    setLoading(true);
+    try { text = await extractPdf(selFile); }
+    catch (e) { showErr('Could not read PDF: ' + e.message); setLoading(false); return; }
+    if (text.length < 60) {
+      showErr('No extractable text found in this PDF. Try the "Paste Text" tab instead.');
+      setLoading(false); return;
+    }
+  } else {
+    text = document.getElementById('rtxt').value.trim();
+    if (text.length < 60) { showErr('Please paste your resume text (at least 60 characters).'); return; }
+    setLoading(true);
+  }
+
+  document.getElementById('resBox').classList.remove('on');
+
+  const sys = `You are an expert resume reviewer and career coach with 15 years of hiring experience.
+Analyze the resume provided and return ONLY a single valid JSON object.
+No markdown, no code fences, no backticks, no commentary — raw JSON only.
+
+Required structure (all keys mandatory):
+{
+  "score": <integer 0-100, overall quality>,
+  "grade": "<A|B|C|D|F>",
+  "summary": "<2-3 sentences overall assessment>",
+  "strengths": ["<point>", "<point>", "<point>"],
+  "weaknesses": ["<point>", "<point>", "<point>"],
+  "improvements": ["<actionable tip>", "<actionable tip>", "<actionable tip>"],
+  "keywords_missing": ["<keyword>", "<keyword>", "<keyword>"],
+  "ats_score": <integer 0-100, ATS/machine-readability score>
+}
+
+Grading: A=90+, B=75-89, C=55-74, D=40-54, F<40. Be honest and constructive.`;
+
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', Authorization:'Bearer ' + apiKey },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { role:'system', content: sys },
+          { role:'user',   content: 'Analyze this resume:\n\n' + text }
+        ],
+        temperature: 0.25,
+        max_tokens: 1500,
+      }),
+    });
+
+    if (!res.ok) {
+      let msg = 'API error (' + res.status + ')';
+      try { const e = await res.json(); msg = e.error?.message || msg; } catch {}
+      throw new Error(msg);
+    }
+
+    const data    = await res.json();
+    const content = (data.choices?.[0]?.message?.content || '').trim();
+
+    // Strip accidental markdown fences
+    let raw = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+
+    // Extract outermost JSON object
+    const s = raw.indexOf('{'), e2 = raw.lastIndexOf('}');
+    if (s === -1 || e2 === -1) throw new Error('Response did not contain valid JSON. Please try again.');
+    raw = raw.slice(s, e2 + 1);
+
+    let parsed;
+    try { parsed = JSON.parse(raw); }
+    catch { throw new Error('Failed to parse AI response. Please try again.'); }
+
+    const required = ['score','grade','summary','strengths','weaknesses','improvements','keywords_missing','ats_score'];
+    const missing  = required.filter(k => !(k in parsed));
+    if (missing.length) throw new Error('AI response is missing fields: ' + missing.join(', '));
+
+    render(parsed);
+
+  } catch (err) {
+    showErr(err.message || 'Unexpected error. Please try again.');
+  } finally {
+    setLoading(false);
+  }
+}
+</script>
+</body>
+</html>
